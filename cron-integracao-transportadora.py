@@ -8,6 +8,7 @@ from email.message import EmailMessage
 import http.client
 import json
 from datetime import datetime
+import transportadoras.mdlog as mdlog
 
 # carregando os dados parametrizados no sistema
 sistema = config.system()
@@ -60,7 +61,7 @@ if( db.error=="ok" ):
        left join transportadoras on trn_id=tc_transportadora \
        left join pessoas t on t.p_id=trn_pessoa \
       where tc_integracaovia>0 \
-       " + where + " limit 1"
+       " + where 
     )
   print("foram encontrados " + str(len(dados)) + " registros")
   for row in dados:
@@ -88,6 +89,110 @@ if( db.error=="ok" ):
     rem_uf        = row["p_uf"]
     rem_cep       = row["p_cep"]
     
+    #
+    # instancia as transportadoras
+    if( idtransp==163 ):
+      mdlog = mdlog.transportadora()
+      mdlog.remetente({"idcliente":idcliente, "rem_cnpj":rem_cnpj, "rem_nome":rem_nome, "rem_endereco":rem_endereco, "rem_numero":rem_numero, "rem_bairro":rem_bairro, "rem_cidade":rem_cidade, "rem_uf":rem_uf, "rem_cep":rem_cep})
+    #
+
+    
+    #########################################################################
+    # fluxo de consulta de pedidos
+    #########################################################################
+    if( cmd == "consultar" ):
+      print("procurando os pedidos a serem consultados - a partir de " + apartir)
+      
+      pedidos = db.query("select pd_contrato,pd_id,pd_pedido,pd_nf_numero,pd_tl_coleta \
+        from pedidos \
+        left join transportadoras on trn_id=pd_transportadora \
+        left join pessoas t on t.p_id=trn_pessoa \
+        left join pedidonota on pn_pedido=pd_id \
+        left join clientes on c_id=pd_cliente \
+        left join pessoas c on c.p_id=c_pessoa\
+        left join pedidoenviado on pe_pedido=pd_id \
+        left join pedidosdestinatario on pdd_pedido=pd_id \
+        where pd_cliente=" + str(idcliente) + "\
+        and pd_transportadora=" + str(idtransp) + "\
+        and pd_canc_em is null \
+        and pd_tl_entrega is null \
+        and coalesce(pe_sucesso,0)=1 \
+        and cast(pd_tl_inc as date)>='" + apartir + "' \
+        " + filtro + "\
+        order by pd_id desc "
+      )
+      if( len(pedidos)>0 ):
+        print("foram encontrado(s) " + str(len(pedidos)) + " a ser(erem) consultados(s)")
+      
+        for pedido in pedidos:
+
+          try:
+            if( pedido["pd_tl_coleta"]!=None ):
+              print("consultando pedido " + pedido["pd_pedido"] + " referente nota " + str(pedido["pd_nf_numero"]),"coletado em", pedido["pd_tl_coleta"] )
+            else:
+              print("consultando pedido " + pedido["pd_pedido"] + " referente nota " + str(pedido["pd_nf_numero"]),"nao coletado" )
+              
+            #####################
+            # lendo retorno mdlog
+            #####################
+            if( idtransp==163 ):
+              mdlog.pacote({"pedido":pedido["pd_pedido"], "idpedido":pedido["pd_id"]})
+              dados = mdlog.status(db)
+            
+            #######################  
+            # processando o retorno 
+            #######################
+            if( dados["sucesso"]==1 ):
+              ipos = 0
+              ultimo = len(dados["historico"])
+              for h in dados["historico"]:
+                ipos = ipos+1
+                if( ipos==ultimo ):
+                  primeiro = False
+                  campo = ""
+                  if( h["tipo"]==1 ):
+                    campo = "pd_tl_emtransito"
+                    spid= "7"
+                  if( h["tipo"]==2 ):
+                    campo = "pd_tl_saiuparaentrega"
+                    spid= "17"
+                  if( h["tipo"]==3 ):
+                    campo = "pd_tl_entrega"
+                    spid= "8"
+                  if( h["tipo"]==4 ):
+                    campo = "pd_tl_falha"
+                    spid= "160"
+                  #
+                  if( campo!="" ):
+                    db.query("update pedidos set "+campo+"='"+h["dh"]+"' where pd_id="+str(pedido["pd_id"])+" and ("+campo+"<='"+h["dh"]+"' or "+campo+" is null)")
+                  #
+                  print( h["ocorrencia"] )
+                  db.query("update pedidos set pd_statuscodigo='"+str(h["sp"])+"',pd_statusdetalhe='"+h["ocorrencia"]+"' where pd_id="+str(pedido["pd_id"]))
+                #  
+                if( h["codtransp"]=="*" ):
+                  hp = db.query("select hp_id from historicoPedido where hp_pedido="+str(pedido["pd_id"])+" and hp_descricao='"+h["ocorrencia"]+"' and hp_transportadora="+str(idtransp))
+                else:
+                  hp = db.query("select hp_id from historicoPedido where hp_pedido="+str(pedido["pd_id"])+" and hp_codigo='"+h["codtransp"]+"' and hp_transportadora="+str(idtransp))
+                #
+                if( len(hp)==0 ):
+                  print("inserindo um novo status - "+h["ocorrencia"])
+                  db.query("insert into historicoPedido (hp_cliente,hp_pedido,hp_statuscodigo,hp_codigo,hp_descricao,hp_complemento,hp_arquivo,hp_dhinicio,hp_transportadora) values ("+str(idcliente)+","+str(pedido["pd_id"])+","+str(h["macro"])+",'"+h["codtransp"]+"','"+h["ocorrencia"]+"','"+h["complemento"]+"','"+str(h).replace("'",'"')+"','"+h["dh"]+"',163)")
+                else:
+                  print("alterando um novo status - ",h["ocorrencia"],"/",h["dh"],"- controle: ",hp[0]["hp_id"])
+                  db.query("update historicoPedido set hp_dhfinal='"+h["dh"]+"' where hp_id="+str(hp[0]["hp_id"]))
+            else:
+              print( dados["erro"] )
+               
+
+          except Exception as err:
+            print("erro de conexao / consulta: ", err)
+            break
+      #
+      
+    
+    #########################################################################
+    # fluxo de envio de pedidos
+    #########################################################################
     if( cmd == "enviar" ):
       print("procurando os pedidos a serem enviados - a partir de " + apartir)
       
@@ -107,7 +212,7 @@ if( db.error=="ok" ):
         msg = msg + " enviando json"
       if( tipo==3 ):
         msg = msg + " enviando edi"
-      print("buscando pediods do cliente",row["contrato"])
+      print("buscando pedidos do cliente",row["contrato"])
       print("para integracao com a transportadora",row["transportadora"],"através de",msg)
 
       pedidos = db.query("select pd_contrato,pd_id,pd_pedido \
@@ -175,99 +280,11 @@ if( db.error=="ok" ):
               # md loggi
               #############################################################################################
               if( idtransp==163 ):
-                volumes = pedido["pd_trn_volumes"]
-                if( volumes==0 ):
-                  volumes = 1
-                  
-                cnpjPagador = "04838701000660"
-                if( pedido["pd_nf_pbruto"]>0 ):
-                  peso = pedido["pd_nf_pbruto"] / 1000
-                else: 
-                  peso = 0.500
-                  
-                emissao = datetime.strptime(pedido["pd_nf_emissao"]).strftime(‘%d/%m/%Y’)
+                mdlog.pacote(pedido)
+                dados = mdlog.envio()
+                sucesso = dados.sucesso
+                erro = dados.erro
                 
-                conn = http.client.HTTPSConnection("ssw.inf.br")
-                payload = json.dumps([
-                  {
-                    "cnpjTransportadora": "21930065000297",
-                    "usuario": usuario,
-                    "senha": senha,
-                    "dados": [
-                      {
-                        "remetente": {
-                          "cnpj": rem_cnpj,
-                          "nome": rem_nome,
-                          "inscr": "ISENTO",
-                          "endereco": {
-                            "rua": rem_endereco,
-                            "numero": rem_numero,
-                            "bairro": rem_bairro,
-                            "cidade": rem_cidade,
-                            "uf": rem_uf,
-                            "cep": rem_cep
-                          }
-                        },
-                        "destinatario": [
-                          {
-                            "nome": pedido["pd_dest_nome"],
-                            "cnpj": pedido["pd_dest_documento"],
-                            "email": pedido["pd_dest_email"],
-                            "telefone": pedido["pd_dest_fone"],
-                            "celular": pedido["pd_dest_fone"],
-                            "endereco": {
-                              "rua": pedido["pdd_endereco"],
-                              "numero": pedido["pdd_numero"],
-                              "bairro": pedido["pdd_bairro"],
-                              "cidade": pedido["pdd_cidade"],
-                              "uf": pedido["pdd_uf"],
-                              "cep": pedido["pdd_cep"],
-                            },
-                            "nf": [
-                              {
-                                "cnpjPagador": cnpjPagador,
-                                "condicaoFrete": "CIF",
-                                "numero": pedido["pd_nf_numero"],
-                                "serie": pedido["pd_nf_serie"],
-                                "dataEmissao": emissao,
-                                "qtdeVolumes": volumes,
-                                "valorMercadoria": pedido["pd_nf_vnf"],
-                                "pesoReal": peso,
-                                "cubagem": 0,
-                                "chaveNFe": pedido["pd_nf_chave"],
-                                "pedido": pedido["pd_pedido"],
-                              },
-                            ]
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ])
-                headers = {
-                  'Content-Type': 'application/json'
-                }
-                conn.request("POST", "/api/notfis", payload, headers)
-                res = conn.getresponse()
-                data = res.read()
-
-                sucesso = 0
-                erro = ""
-                msg = ""
-                origem_base64 = ""
-                try:
-                  objeto = json.loads( str(data.decode("utf-8")) )
-                  origem_base64 = str(data.decode("utf-8"))
-                except ValueError as e:
-                  erro = "erro na conversao do retorno"
-                
-                if( erro=="" ):
-                  for result in objeto:
-                    if( result["sucesso"]==0 ):
-                      erro = result["mensagem"] 
-                if( erro=="" ):
-                  sucesso = 1
-
             # envio da informacao via sftp
             #########################################################################################################
             if( via==3 ):
