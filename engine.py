@@ -13,54 +13,65 @@ sistema.load()
 tick = 1 # tempo padrão de execução dos ciclos (1 minuto)
 first = 1 # so para saber se o motor deu a partida agora
 start = datetime.now()
-
-# montando a lista da tarefas
-tasks = { "list" :
-  [ 
-     {"interval": 60, "runonfirst" : 1, "task" : "getcliente"} 
-    ,{"interval": 10, "runonfirst" : 0, "task" : "xm-fedex"} 
-  ] 
-}
+clientes = [] # lista de clientes
 
 print("motor iniciado as " + start.strftime("%d/%m/%Y as %H:%M") )
+
+# montando a lista da tarefas
+print( "carregando lista de tarefas" )
+db = database.data(sistema)
+db.connect()
+tasks = db.query(
+  "select tl_interval, tl_description, tl_clients, tl_runonfirst, tl_filename, tl_p1, tl_p2, tl_p3, tl_p4 \
+     from tasklist \
+    where tl_active=1 \
+   order by tl_interval"
+)
+print( "foram enocntradas " + str(len(tasks)) + " tarefas a serem executadas" ) 
 
 tickPassed = 0
 while True:
   time.sleep( tick )
-  #time.sleep( (tick * 60) )
   
   tickPassed = tickPassed + 1
   
-  for task in tasks["list"]:
-    if( (task["interval"]==tickPassed) or (first==1 and task["runonfirst"]==1) ):
-      if( first==1 ):
-        print("partida no motor")
-        
-      first = 0
+  for task in tasks:
+    if( ((tickPassed % task["tsk_interval"])==0) or (first==1 and task["tsk_runonfirst"]==1) ):
       
+      # =================================================================
       # task getclient é majoritária e precisa ser executada por primeiro
-      if( task["task"]=="getcliente" ):
-        # conectando no banco
+      # ela traz a lista dos clientes para os próximos scripts
+      # =================================================================
+      if( task["tsk_task"]=="getclientes()" ):
+        print( "atualizando lista de clientes" )
         db = database.data(sistema)
         db.connect()
-
-      
-      print("executando task", task["task"])
-
-  
-  
-
-# conectando no banco
-#db = database.data(sistema)
-#db.connect()
-
-#  dados = db.query(
-#    "select p_apelido,if_cliente,if_host,if_port,if_pasta,if_usuario,if_senha,if_dhapartir \
-#       from integracaofedex \
-#       left join clientes on c_id=if_cliente  \
-#       left join pessoas on p_id=c_pessoa \
-#       " + where
-#    )
-
-
-
+        clientes = db.query("select p_cnpj,p_apelido from clientes left join pessoas on p_id=c_pessoa where c_bloqueado=0 order by c_id")
+        for c in clientes:
+          print(c["p_cnpj"],c["p_apelido"])
+      else:
+        ##########################################
+        # se nao é um script executado por cliente
+        ##########################################
+        if( task["tsk_clientes"]==0 ):
+          os.spawnlp(os.P_NOWAIT, task["tsk_task"], task["tsk_p1"], task["tsk_p2"], task["tsk_p3"], task["tsk_p4"], task["tsk_p5"])
+        else:
+          for c in clientes:
+            if( os.path.exists(task["tsk_task"])==True ):
+              #
+              # verifica se o script anterior foi concluido (no script, deve conter os.path.basename(__file__) para mandar aviso de que o comando foi concluido)
+              #
+              # abre registro informando que vai executar o script (o script, deve ter um comando para informar a conclusão do mesmo)
+              print(f"executando {task['tsk_task']} para o cliente {c['p_apelido']}")
+              os.spawnlp(os.P_NOWAIT, "python3", task["tsk_task"], c["p_cnpj"], task["tsk_p1"], task["tsk_p2"], task["tsk_p3"], task["tsk_p4"], task["tsk_p5"])
+            else :
+              print(f"tarefa {task['tsk_task']} nao encontrada")
+            #
+          #
+        #
+      #
+    #
+  #
+  first = 0
+  if( tickPassed>60 ):
+    break

@@ -9,12 +9,19 @@ class transportadora:
     self.urlbase = "ssw.inf.br"
     self.urlenvio = "/api/notfis"
     self.urlstatus = "/api/trackingpag"
+    self.cnpjPagador = ""
+
 
   ###################################################################################
   # metodo para definicao de pacote - que sera usado para envio ou consulta de status
   ###################################################################################
   def remetente(self,objeto):
     self.remetente = objeto
+    self.username = objeto["usuario"]
+    self.password = objeto["senha"]
+    #self.cnpjPagador = "04838701000660"
+    self.cnpjPagador = objeto["unidade"]
+
 
   ###################################################################################
   # metodo para definicao de pacote - que sera usado para envio ou consulta de status
@@ -33,14 +40,21 @@ class transportadora:
     volumes = self.pedido["pd_trn_volumes"]
     if( volumes==0 ):
       volumes = 1
+    if( volumes==None ):
+      volumes = 1
       
-    cnpjPagador = "04838701000660"
-    if( self.pedido["pd_nf_pbruto"]>0 ):
-      peso = self.pedido["pd_nf_pbruto"] / 1000
+    pbruto = self.pedido["pd_nf_pbruto"]
+    if( pbruto == None ):
+      pbruto = 500
+    if( pbruto>0 ):
+      peso = pbruto / 1000
     else: 
       peso = 0.500
       
-    emissao = datetime.strptime(self.pedido["pd_nf_emissao"]).strftime("%d/%m/%Y")
+    emissao = self.pedido["pd_nf_emissao"].strftime("%d/%m/%Y")
+    documento = self.pedido["pd_dest_documento"].replace("/","")
+    documento = documento.replace(".","")
+    documento = documento.replace("-","")
     
     conn = http.client.HTTPSConnection("ssw.inf.br")
     payload = json.dumps([
@@ -66,7 +80,7 @@ class transportadora:
             "destinatario": [
               {
                 "nome": self.pedido["pd_dest_nome"],
-                "cnpj": self.pedido["pd_dest_documento"],
+                "cnpj": documento,
                 "email": self.pedido["pd_dest_email"],
                 "telefone": self.pedido["pd_dest_fone"],
                 "celular": self.pedido["pd_dest_fone"],
@@ -80,7 +94,7 @@ class transportadora:
                 },
                 "nf": [
                   {
-                    "cnpjPagador": cnpjPagador,
+                    "cnpjPagador": self.cnpjPagador,
                     "condicaoFrete": "CIF",
                     "numero": self.pedido["pd_nf_numero"],
                     "serie": self.pedido["pd_nf_serie"],
@@ -105,21 +119,26 @@ class transportadora:
     conn.request("POST", "/api/notfis", payload, headers)
     res = conn.getresponse()
     data = res.read()
-
+    
     try:
       dadosb64 = str(data.decode("utf-8"))
       objeto = json.loads( dadosb64 )
     except ValueError as e:
-      erro = "erro na conversao do retorno"
+      erro = "erro na conversao do retorno"    
     
     sucesso = 0
     if( erro=="" ):
-      for result in objeto:
-        if( result["sucesso"]==0 ):
-          erro = result["mensagem"] 
+      if( "sucesso" in objeto ):
+        erro = objeto["mensagem"]
+      else:
+        for result in objeto:
+          if( result["sucesso"]==0 ):
+            erro = result["mensagem"] 
+        print( payload )  
+      #
     if( erro=="" ):
       sucesso = 1
-
+    
     return {"sucesso": sucesso, "erro": erro, "dadosb64": dadosb64}
 
 
@@ -129,24 +148,28 @@ class transportadora:
   def status(self,db):
     conn = http.client.HTTPSConnection(self.urlbase)
     payload = json.dumps({
-      "cnpj": "04838701000660",
+      "cnpj": self.cnpjPagador,
       "sigla_emp": self.remetente["rem_cnpj"],
       "pedido": self.pedido["pedido"]
     })
     headers = {
       'Content-Type': 'application/json'
     }
-    conn.request("POST", self.urlstatus, payload, headers)
-    res = conn.getresponse()
-    data = res.read()
     sucesso = 0
     erro = ""
     historico = []
     try:
-      objeto = json.loads( data )
-      sucesso = objeto["success"]
+      conn.request("POST", self.urlstatus, payload, headers)
+      res = conn.getresponse()
+      data = res.read()
+      try:
+        objeto = json.loads( data )
+        sucesso = objeto["success"]
+      except ValueError as e:
+        erro = "erro na conversao do retorno"
     except ValueError as e:
-      erro = "erro na conversao do retorno"
+      erro = "erro de conexao a MDLOG"
+      print( "nao foi possivel conectar no host para consulta do status")
       
     if( objeto["success"]==0 ):
       erro = objeto["message"] 

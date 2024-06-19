@@ -41,11 +41,15 @@ if( db.error=="ok" ):
           ,tc_transportadora \
           ,t.p_apelido transportadora \
           ,tc_emailcoleta, tc_avisocoletah1, tc_avisocoletah2, tc_avisocoletah3 \
+          ,up.p_apelido as unidade \
+          ,up.p_endereco unid_endereco, up.p_endereco_numero as unid_endereconumero \
        from transportadorascliente \
        left join clientes on c_id=tc_cliente  \
        left join pessoas c on c.p_id=c_pessoa \
        left join transportadoras on trn_id=tc_transportadora \
        left join pessoas t on t.p_id=trn_pessoa \
+       left join unidades u on u.u_id=c_unidade \
+       left join pessoas up on up.p_id=u.u_pessoa \
       where coalesce(tc_emailcoleta,'')<>'' \
         and tc_ativo=1 \
        " + where
@@ -56,7 +60,7 @@ if( db.error=="ok" ):
 
     idcliente     = row["tc_cliente"]
     idtransp      = row["tc_transportadora"]
-    nometransp    = row["transportadora"]
+    nometransp      = row["transportadora"]
     #
     # dados do remetente
     rem_cnpj      = row["cnpj_contrato"]
@@ -67,6 +71,8 @@ if( db.error=="ok" ):
     rem_cidade    = row["p_cidade"]
     rem_uf        = row["p_uf"]
     rem_cep       = row["p_cep"]
+    #
+    # centro de distribuicao
     
     #########################################################################
     # fluxo de envio de pedidos
@@ -82,7 +88,7 @@ if( db.error=="ok" ):
         from pedidos \
         left join transportadoras on trn_id=pd_transportadora \
         left join pessoas t on t.p_id=trn_pessoa \
-        left join avisocoleta on av_pedido=pd_id and av_data='{data}' and av_hora='{hora}' \
+        left join avisocoleta on av_pedido=pd_id and av_data>='{data}' and av_hora>='{hora}' \
         where pd_cliente={idcliente} \
         and pd_transportadora={idtransp} \
         and pd_canc_em is null \
@@ -93,7 +99,11 @@ if( db.error=="ok" ):
         {filtro} \
         order by pd_id desc "
       )
+      
       if( len(pedidos)>0 ):
+        local = row["unidade"]
+        local_coleta  = row["unid_endereco"] + ", " +row["unid_endereconumero"]
+
         print("foram encontrado(s) " + str(len(pedidos)) + " a ser(erem) enviado(s)")
         
         body = ""
@@ -120,7 +130,20 @@ if( db.error=="ok" ):
           msg['Subject'] = 'Aviso de coleta - ' + rem_nome
           msg['From'] = remetente
           msg['To'] = destinatarios
-          msg.set_content(f"Ola {nometransp}\r\n\r\nSegue relação do(s) {qpedidos} pedido(s) do cliente {rem_nome}/{rem_cnpj} a serem coletados:\r\n\r\n{body}\r\n\r\nAtenciosamente,")
+          msg.set_content(f"Prezado {nometransp}\r\n\r\n \
+            Informamos que temos pedidos disponíveis para coletas em nosso centro logístico.\r\n\r\n \
+            Quantidade de pedidos \r\n \
+            {qpedidos} pedido(s)\r\n\r\n \
+            Local de Coleta:\r\n \
+            Centro:{local}\r\n \
+            Endereco: {local_coleta}\r\n\r\n \
+            Instruções para Coleta: \r\n \
+            - O representante de apresentar um documento de identificação com foto. \r\n\r\n \
+            Para qualquer dúvida ou mais informações, estamos à disposição pelo telefone (Número de telefone) Ou pelo E-mail (E-mail de contato). \r\n\r\n \
+            Agradecemos a sua preferência e confiança em nossos serviços logísticos. \r\n \
+            \r\n \
+            \r\n \
+            Atenciosamente,")
           #
           r = servidor_email.send_message(msg)
           #

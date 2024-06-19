@@ -55,11 +55,16 @@ if( db.error=="ok" ):
           ,tc_iv_inicio \
           ,tc_iv_tipodado \
           ,tc_token \
+          ,tc_contrato cnpj_pagador \
+          ,un.p_cnpj as unidade_cnpj \
        from transportadorascliente \
        left join clientes on c_id=tc_cliente  \
        left join pessoas c on c.p_id=c_pessoa \
        left join transportadoras on trn_id=tc_transportadora \
        left join pessoas t on t.p_id=trn_pessoa \
+       left join unidades u on u.u_id=c_unidade \
+       left join unidades uc on uc.u_id=u.c_unidademaster \
+       left join pessoas un on un.p_id=uc.u_pessoa \
       where tc_integracaovia>0 \
        " + where 
     )
@@ -78,6 +83,8 @@ if( db.error=="ok" ):
     apartir       = row["tc_iv_inicio"].strftime("%Y/%m/%d")
     tipo          = row["tc_iv_tipodado"]
     via           = row["tc_integracaovia"]
+    unidadecnpj   = row["cnpj_pagador"]
+    
     #
     # dados do remetente
     rem_cnpj      = row["cnpj_contrato"]
@@ -93,7 +100,7 @@ if( db.error=="ok" ):
     # instancia as transportadoras
     if( idtransp==163 ):
       mdlog = mdlog.transportadora()
-      mdlog.remetente({"idcliente":idcliente, "rem_cnpj":rem_cnpj, "rem_nome":rem_nome, "rem_endereco":rem_endereco, "rem_numero":rem_numero, "rem_bairro":rem_bairro, "rem_cidade":rem_cidade, "rem_uf":rem_uf, "rem_cep":rem_cep})
+      mdlog.remetente({"idcliente":idcliente, "rem_cnpj":rem_cnpj, "rem_nome":rem_nome, "rem_endereco":rem_endereco, "rem_numero":rem_numero, "rem_bairro":rem_bairro, "rem_cidade":rem_cidade, "rem_uf":rem_uf, "rem_cep":rem_cep,"usuario":usuario,"senha":senha, "unidade": unidadecnpj})
     #
 
     
@@ -280,10 +287,11 @@ if( db.error=="ok" ):
               # md loggi
               #############################################################################################
               if( idtransp==163 ):
+                print("preparando pacote")
                 mdlog.pacote(pedido)
                 dados = mdlog.envio()
-                sucesso = dados.sucesso
-                erro = dados.erro
+                sucesso = dados["sucesso"]
+                erro = dados["erro"]
                 
             # envio da informacao via sftp
             #########################################################################################################
