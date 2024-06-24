@@ -184,8 +184,8 @@ class transportadora:
         datahora = row["data_hora"].replace("T"," ")
         cidade = row["cidade"]
         ocorrencia = row["ocorrencia"]
-        if( ocorrencia.index("(")>0 ):
-          ocorrencia = ocorrencia[0:ocorrencia.index("(")-1]
+        if( ocorrencia.find("(")>0 ):
+          ocorrencia = ocorrencia[0:ocorrencia.find("(")-1]
         detalhe = row["descricao"]
         tipo = 0
         macro = 0

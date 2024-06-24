@@ -10,6 +10,9 @@ import json
 from datetime import datetime
 import transportadoras.mdlog as mdlog
 
+pid = os.getpid()
+print(f"PID deste processo {pid}")
+
 # carregando os dados parametrizados no sistema
 sistema = config.system()
 sistema.load()
@@ -358,6 +361,10 @@ if( db.error=="ok" ):
     print("fim deste cliente")  
   
   print( "fim de [" + cmd + "]" )
+  
+  print(f"finalizando o pid {pid}")
+  db.query(f"update taskdetail set td_dhend=current_timestamp where td_pid={pid} and td_dhend is null")
+  print("pid encerrado")
 else:
   print( db.error )
 
