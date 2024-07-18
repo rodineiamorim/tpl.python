@@ -19,6 +19,7 @@ db = database.data(sistema)
 db.connect()
 
 if( db.error=="ok" ):
+  observacao = 'nao havia dados'
   try:
     cnpj = ""
     todos = ""
