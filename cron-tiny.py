@@ -469,7 +469,10 @@ if( db.error=="ok" ):
               dest_numero = "SN"
             
             # transportadora
-            transportadora = apoio.removeAcentos(detalhe["nome_transportador"])
+            try:
+              transportadora = apoio.removeAcentos(detalhe["nome_transportador"])
+            except:
+              transportadora = ""
             transportadora_original = transportadora
             metodo = apoio.removeAcentos(detalhe["forma_envio"])
             if( (len(metodo)==1) and (transportadora=="CORREIOS") ):
@@ -640,13 +643,14 @@ if( db.error=="ok" ):
                 #
               #
               if( forma_envio!="" ):
-                if( forma_envio[0,13].upper()=="SHOPEE_ENVIOS" ):
-                  transportadora = "SHOPEE"
-                  metodo = ""
-                  try:
-                    sro = detalhe["ecommerce"]["numeroPedidoEcommerce"][0:12]
-                  except:
-                    sro = ""
+                if( len(forma_envio)>12 ):
+                  if( forma_envio[0,13].upper()=="SHOPEE_ENVIOS" ):
+                    transportadora = "SHOPEE"
+                    metodo = ""
+                    try:
+                      sro = detalhe["ecommerce"]["numeroPedidoEcommerce"][0:12]
+                    except:
+                      sro = ""
                 #
               #
             #
