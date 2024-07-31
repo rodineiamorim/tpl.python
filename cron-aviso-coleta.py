@@ -90,7 +90,7 @@ if( db.error=="ok" ):
         hora = agora.strftime("%H:00")
 
         print(f"verificando se ha pedidos a serem coletados as {hora}")
-        
+
         pedidos = db.query(f"select pd_id,pd_pedido,pd_nf_numero,pd_nf_serie,pd_nf_chave \
           from pedidos \
           left join transportadoras on trn_id=pd_transportadora \

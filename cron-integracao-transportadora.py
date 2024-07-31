@@ -1,5 +1,6 @@
 import classes.config as config
 import classes.database as database
+import transportadoras.mdlog as dialogo
 import sys
 import os
 import base64
@@ -8,7 +9,6 @@ from email.message import EmailMessage
 import http.client
 import json
 from datetime import datetime
-import transportadoras.mdlog as mdlog
 
 pid = os.getpid()
 print(f"PID deste processo {pid}")
@@ -102,7 +102,7 @@ if( db.error=="ok" ):
     #
     # instancia as transportadoras
     if( idtransp==163 ):
-      mdlog = mdlog.transportadora()
+      mdlog = dialogo.transportadora()
       mdlog.remetente({"idcliente":idcliente, "rem_cnpj":rem_cnpj, "rem_nome":rem_nome, "rem_endereco":rem_endereco, "rem_numero":rem_numero, "rem_bairro":rem_bairro, "rem_cidade":rem_cidade, "rem_uf":rem_uf, "rem_cep":rem_cep,"usuario":usuario,"senha":senha, "unidade": unidadecnpj})
     #
 

@@ -15,7 +15,7 @@ class system:
     self.mail_host = "smtp.office365.com"
     self.mail_port = 587
     self.mail_username = "alertas@tpl.com.br"
-    self.mail_password = "PlPl4t1nuM"
+    self.mail_password = "Pl@t1num"
 
   def load(self):
     i = 0

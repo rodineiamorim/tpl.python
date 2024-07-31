@@ -634,6 +634,7 @@ def cotar(carrinho):
       extraValue = regiao["pv_pesoextra"] * (extraWeight / 1000)
     #
 
+    """
     v = regiao["pv_valor"] + extraValue
     fixo = 0
     if (regra == 6) :
@@ -1190,3 +1191,4 @@ def cotar(carrinho):
     return {"code":200}
   else:
     return {"code":400}
+    """

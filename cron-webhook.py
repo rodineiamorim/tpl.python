@@ -163,7 +163,7 @@ if( db.error=="ok" ):
               
             if( pedido["fwh_id"]==0 ):
               print("criando registro na fila")
-              db.query(f"insert into filawebhook (fwh_pedido,fwh_gatilho,fwh_titulo,fwh_enviado,fwh_sucesso,fwh_dhdisparo,fwh_httpcode) values ({pedido['pd_id']},{gatilho['gwh_gatilho']},'{gatilho['sp_nome']}','{response}',{sucesso},current_timestamp,{httpcode})")
+              db.query(f"insert into filawebhook (fwh_pedido,fwh_gatilho,fwh_titulo,fwh_enviado,fwh_retorno,fwh_sucesso,fwh_dhdisparo,fwh_httpcode) values ({pedido['pd_id']},{gatilho['gwh_gatilho']},'{gatilho['sp_nome']}','{enviar}','{response}',{sucesso},current_timestamp,{httpcode})")
             else:
               print("atualizando disparo")
               db.query(f"update filawebhook set fwh_dhdisparo=current_timestamp,fwh_httpcode={httpcode},fwh_retorno='{response}',fwh_url='{url}',fwh_sucesso={sucesso} where fwh_id={pedido['fwh_id']}")

@@ -35,6 +35,7 @@ def removeMascara(texto):
   novo = novo.replace("(","")
   novo = novo.replace(")","")
   novo = novo.replace("\\","")
+  novo = novo.replace("/","")
   return novo
 
 
